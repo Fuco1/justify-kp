@@ -9,6 +9,9 @@
 (defvar pj-demerits-line 10
   "Value which a linebreak contributes to break-point demerits.")
 
+(defvar pj-hanging-punctuation '("." ",")
+  "Punctuation that should extend after the right margin.")
+
 (defmacro pj-mapcar (fun gline)
   "Call FUN on each glyph of GLINE and return the list of
 results."
@@ -63,16 +66,26 @@ This function assumes there is a space character in GLINE."
     (while (not (eq (aref header i) 32)) (cl-incf i))
     (lglyph-width (lgstring-glyph gline (1- i)))))
 
+;; TODO: right now the constant '5' is randomly chosen and doesn't
+;; corespond to font-width.  Find a generic way to get glyph widths
+;; (the gline approach is quite shitty)
 (defun pj--make-box (word total-width shrink stretch &optional glue)
   "Make a box data structure out of WORD, which is a list of glyphs."
   (let* ((width 0)
          (chars (mapcar (lambda (c)
                           (cl-incf width (lglyph-width c))
                           (lglyph-char c))
-                        word)))
+                        word))
+         (value (apply 'string chars)))
+    (when (and pj-hanging-punctuation
+               glue
+               (-any? (-cut s-ends-with-p <> value) pj-hanging-punctuation))
+      (cl-decf width 5)
+      (setq glue (plist-put glue :width
+                            (+ (plist-get glue :width) 5))))
     (list :type :box
           :width width
-          :value (apply 'string chars)
+          :value value
           :total-width (+ width total-width)
           :total-shrink shrink
           :total-stretch stretch
@@ -105,6 +118,7 @@ values.  Boxes also has a value, the text they represent."
            (push g word)
          (let* ((glue (pj--make-glue space-width))
                 (box (pj--make-box (nreverse word) total-width shrink stretch glue)))
+           (setq glue (plist-get box :glue))
            (push box re)
            (push glue re)
            (setq word nil)
@@ -216,8 +230,12 @@ This signifies that the active node should be disactivated."
                                                  it)
                                         break-points)))
                   (an (plist-get best :node))
-                  (dem (plist-get best :demerits)))
-             (setcdr cn (cons an (cons :demerits (cons dem (cons (car cn) (cdr cn))))))
+                  (dem (plist-get best :demerits))
+                  (line-width (plist-get best :distance)))
+             (setcdr cn (cons an (cons :distance
+                                       (cons line-width
+                                             (cons :demerits
+                                                   (cons dem (cons (car cn) (cdr cn))))))))
              (setcar cn :parent)))))
      ;; we can only consider boxes at this point
      (--filter (eq :box (plist-get it :type)) tokens))
@@ -230,8 +248,8 @@ This signifies that the active node should be disactivated."
 
 (defun pj-breaklines (tokens)
   (save-excursion
-    (let ((where (pj-justify tokens))
-          (lines 0))
+    (let* ((where (pj-justify tokens))
+           (where2 where))
       (mapc
        (lambda (ac)
          (forward-char (+ (length (plist-get ac :value))
@@ -242,15 +260,14 @@ This signifies that the active node should be disactivated."
                (progn
                  (delete-char (- (length (pj--plist-get ac :glue :value))))
                  (newline)
-                 (pop where)
-                 (cl-incf lines)))))
+                 (pop where)))))
        (--filter (eq :box (plist-get it :type)) tokens))
-      lines)))
+      where2)))
 
 (defun pj-breaklines-and-justify (tokens)
   (let ((lines (pj-breaklines tokens)))
-    (dotimes (_ lines)
-      (pj-justify-line)
+    (--each lines
+      (pj-justify-line (plist-get it :distance))
       (forward-line))))
 
 (defmacro pj--plist-get (ds key &rest keys)
@@ -260,16 +277,16 @@ This signifies that the active node should be disactivated."
          ,@(mapcar (lambda (k) (list 'plist-get k)) keys))
     `(plist-get ,ds ,key)))
 
-(defun pj-justify-line ()
+(defun pj-justify-line (&optional width)
   (interactive)
-  (pj--justify-line (pj-get-line)))
+  (pj--justify-line (pj-get-line) width))
 
-(defun pj--justify-line (gline)
-  (let* ((line-width (pj-get-line-width gline))
-         (line-spaces (pj-get-line-spaces gline))
+(defun pj--justify-line (gline &optional width)
+  (let* ((line-width (or width (pj-get-line-width gline)))
+         (line-spaces (pj-get-line-spaces))
          (space-width (pj-get-space-width gline))
          (extra (- pj-line-width line-width))
-         (new-space-width (/ (float extra) line-spaces))
+         (new-space-width (+ space-width (/ (float extra) line-spaces)))
          (new-space-width-whole (floor new-space-width))
          (new-space-width-decimal (- new-space-width new-space-width-whole))
          (space-stretch-ratio (/ new-space-width space-width))

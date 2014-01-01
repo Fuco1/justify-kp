@@ -289,3 +289,12 @@ This signifies that the active node should be disactivated."
 (defun pj-remove-tp (begin end)
   (interactive "r")
   (remove-text-properties begin end '(display)))
+
+(defun pj-justify-paragraph ()
+  (interactive)
+  (save-excursion
+    (pj-remove-tp (save-excursion (start-of-paragraph-text) (point))
+                  (save-excursion (end-of-paragraph-text) (point)))
+    (unfill-paragraph)
+    (start-of-paragraph-text)
+    (pj-breaklines-and-justify (pj-get-line-tokens (pj-get-line)))))

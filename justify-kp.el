@@ -49,15 +49,10 @@ results."
      gline)
     width))
 
-(defun pj-get-line-spaces (gline)
+(defun pj-get-line-spaces ()
   "Return number of spaces in GLINE."
-  (let ((spaces 0))
-    (pj-mapc
-     (lambda (g)
-       (when (eq (lglyph-char g) 32)
-         (cl-incf spaces)))
-     gline)
-    spaces))
+  (cl-destructuring-bind (b . e) (bounds-of-thing-at-point 'line)
+    (count-matches " " b e)))
 
 (defun pj-get-space-width (gline)
   "Return width of space character using the font of GLINE.

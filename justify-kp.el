@@ -78,10 +78,12 @@ This function assumes there is a space character in GLINE."
           :total-stretch stretch
           :glue glue)))
 
+;; TODO: handle the underflow boxes better (right now huge stretch
+;; fixes most of the issues)
 (defun pj--make-glue (width)
   "Make a glue token with default WIDTH, shrinkability 1/3 of
 width and stretchability 1/2 of width."
-  (list :type :glue :width width :shrink (/ width 3) :stretch (/ (* width 3) 3) :value " "))
+  (list :type :glue :width width :shrink (/ width 3) :stretch (/ (* width 6) 3) :value " "))
 
 ;; this assumes one glue always follows one box -- I think any other
 ;; situation can be reduced to this anyway

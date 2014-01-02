@@ -307,11 +307,28 @@ This signifies that the active node should be disactivated."
   (interactive "r")
   (remove-text-properties begin end '(display)))
 
+;; TODO: this is a quick hack... we'd need something faster.
+(defun pj-unfill-paragraph ()
+  "Take a multi-line paragrap and make it into a single line of text.
+This is the opposite of fill-paragraph."
+  (interactive)
+  (let ((fill-column (point-max)))
+    (fill-paragraph nil)))
+
 (defun pj-justify-paragraph ()
   (interactive)
   (save-excursion
-    (pj-remove-tp (save-excursion (start-of-paragraph-text) (point))
-                  (save-excursion (end-of-paragraph-text) (point)))
-    (unfill-paragraph)
-    (start-of-paragraph-text)
+    (pj-unjustify-paragraph)
+    (forward-paragraph)
+    (backward-paragraph)
+    (forward-line)
+    (pj-unfill-paragraph)
     (pj-breaklines-and-justify (pj-get-line-tokens (pj-get-line)))))
+
+
+(defun pj-unjustify-paragraph ()
+  (interactive)
+  (save-excursion
+    (let ((end (progn (forward-paragraph) (point)))
+          (start (progn (backward-paragraph) (point))))
+      (pj-remove-tp start end))))

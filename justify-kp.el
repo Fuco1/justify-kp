@@ -21,7 +21,7 @@ results."
     `(let ((,re nil)
            (,ln (lgstring-char-len ,gline)))
        (--dotimes ,ln
-         (push ,re (funcall ,fun (lgstring-glyph ,gline it))))
+         (push (funcall ,fun (lgstring-glyph ,gline it)) ,re))
        (nreverse ,re))))
 
 (defmacro pj-mapc (fun gline)

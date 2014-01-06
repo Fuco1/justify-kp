@@ -3,14 +3,25 @@
 (require 'dash)
 (require 'dash-functional)
 
-(defvar pj-line-width 1000
-  "Goal width of each line.")
+(defgroup justify-kp ()
+  "Text/paragraph justification using Knuth/Plass algorithm."
+  :group 'convenience
+  :prefix "pj-")
 
-(defvar pj-demerits-line 10
-  "Value which a linebreak contributes to break-point demerits.")
+(defcustom pj-line-width 1000
+  "Goal width of each line."
+  :group 'justify-kp
+  :type 'integer)
 
-(defvar pj-hanging-punctuation '("." ",")
-  "Punctuation that should extend after the right margin.")
+(defcustom pj-demerits-line 10
+  "Value which a linebreak contributes to break-point demerits."
+  :group 'justify-kp
+  :type 'integer)
+
+(defcustom pj-hanging-punctuation '("." ",")
+  "Punctuation that should extend after the right margin."
+  :group 'justify-kp
+  :type '(repeat string))
 
 (defun pj-get-gstring (from to font-object string)
   (setq string (string-to-multibyte string))

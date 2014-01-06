@@ -71,6 +71,19 @@ The reduction is left-associative."
   (cl-destructuring-bind (b . e) (bounds-of-thing-at-point 'line)
     (count-matches " " b e)))
 
+(defun pj--get-buffer-substring-width (from to)
+  "Get width of text in current buffer between FROM and TO.
+
+It is assumed the font does not change in this interval."
+  (pj--get-string-width (buffer-substring-no-properties from to) from))
+
+(defun pj--get-string-width (string &optional at)
+  "Get width of STRING as if it were inserted at current point in current buffer.
+
+If AT is non-nil and number, assume font at that buffer position."
+  (let ((gstring (pj-get-gstring 0 (length string) (font-at (or at (point))) string)))
+    (apply '+ (pj-mapcar 'lglyph-width gstring))))
+
 (defun pj-get-space-width (gline)
   "Return width of space character using the font of GLINE.
 
@@ -114,6 +127,17 @@ width and stretchability 1/2 of width."
 
 ;; this assumes one glue always follows one box -- I think any other
 ;; situation can be reduced to this anyway
+
+;; TODO: this needs to be reworked to take changes in text-properties
+;; into account.  Input should be a point in buffer: we take the line
+;; following the point, then walk over the words by face (font!!)
+;; property changes, take the glines of each segment, and produce the
+;; tokens.  At most one glue token can follow each non-glue
+;; token---this glue will be added as a property of the box, not as a
+;; separate item in the token stream.  Each glue will have to remember
+;; its apparent and real width (apparent width can extend over
+;; surrounding boxes, real width is what we stretch/shring when we
+;; actually render the glue)
 (defun pj-get-line-tokens (gline)
   "Return a list of tokens for the current line.
 

@@ -319,11 +319,12 @@ This is the opposite of fill-paragraph."
   (interactive)
   (save-excursion
     (pj-unjustify-paragraph)
-    (forward-paragraph)
-    (backward-paragraph)
-    (forward-line)
     (pj-unfill-paragraph)
-    (pj-breaklines-and-justify (pj-get-line-tokens (pj-get-line)))))
+    (let ((end (progn (forward-paragraph) (point)))
+          (start (progn (backward-paragraph) (point))))
+      (forward-line)
+      (save-excursion (replace-regexp " +" " " nil start end))
+      (pj-breaklines-and-justify (pj-get-line-tokens (pj-get-line))))))
 
 
 (defun pj-unjustify-paragraph ()

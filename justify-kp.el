@@ -12,6 +12,10 @@
 (defvar pj-hanging-punctuation '("." ",")
   "Punctuation that should extend after the right margin.")
 
+(defun pj-get-gstring (from to font-object string)
+  (setq string (string-to-multibyte string))
+  (copy-tree (composition-get-gstring from to font-object string) t))
+
 (defmacro pj-mapcar (fun gline)
   "Call FUN on each glyph of GLINE and return the list of
 results."
@@ -39,7 +43,7 @@ results."
                 (line-beginning-position)
                 (line-end-position)))
          (font (font-at p))
-         (gline (composition-get-gstring 0 (length line) font line)))
+         (gline (pj-get-gstring 0 (length line) font line)))
     gline))
 
 (defun pj-get-line-width (gline)

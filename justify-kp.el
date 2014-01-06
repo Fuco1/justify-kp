@@ -16,25 +16,27 @@
   (setq string (string-to-multibyte string))
   (copy-tree (composition-get-gstring from to font-object string) t))
 
-(defmacro pj-mapcar (fun gline)
+(defun pj-mapcar (fun gline)
   "Call FUN on each glyph of GLINE and return the list of
 results."
-  (declare (debug (function-form form)))
-  (let ((re (make-symbol "re-list"))
-        (ln (make-symbol "gline-len")))
-    `(let ((,re nil)
-           (,ln (lgstring-char-len ,gline)))
-       (--dotimes ,ln
-         (push (funcall ,fun (lgstring-glyph ,gline it)) ,re))
-       (nreverse ,re))))
+  (let ((re nil)
+        (ln (lgstring-char-len gline)))
+    (--dotimes ln
+      (push (funcall fun (lgstring-glyph gline it)) re))
+    (nreverse re)))
 
-(defmacro pj-mapc (fun gline)
+(defun pj-mapc (fun gline)
   "Call FUN on each glyph of GLINE for side effect only."
-  (declare (debug (function-form form)))
-  (let ((ln (make-symbol "gline-len")))
-    `(let ((,ln (lgstring-char-len ,gline)))
-       (--dotimes ,ln
-         (funcall ,fun (lgstring-glyph ,gline it))))))
+  (let ((ln (lgstring-char-len gline)))
+    (--dotimes ln
+      (funcall fun (lgstring-glyph gline it)))))
+
+(font-lock-add-keywords 'emacs-lisp-mode `((,(concat "("
+                                                     (regexp-opt '("pj-mapcar"
+                                                                   "pj-mapc"
+                                                                   "pj-reduce") t)
+                                                     "\\>")
+                                            (1 font-lock-keyword-face))))
 
 (defun pj-get-line (&optional p)
   "Transform current line into a \"glyph\" line."

@@ -31,6 +31,18 @@ results."
     (--dotimes ln
       (funcall fun (lgstring-glyph gline it)))))
 
+(defun pj-reduce (fun init gline)
+  "Reduce GLINE using FUN and initial value INIT.
+
+FUN is binary function, with first argument the accumulated value
+and second argument an element of the list.
+
+The reduction is left-associative."
+  (let ((acc init)
+        (ln (lgstring-char-len gline)))
+    (--dotimes ln (setq acc (funcall fun acc (lgstring-glyph gline it))))
+    acc))
+
 (font-lock-add-keywords 'emacs-lisp-mode `((,(concat "("
                                                      (regexp-opt '("pj-mapcar"
                                                                    "pj-mapc"
@@ -49,14 +61,10 @@ results."
     gline))
 
 (defun pj-get-line-width (gline)
-  "Return the width of GLINE in pixels."
-  (let ((width 0))
-    (pj-mapc
-     (lambda (g)
-       (unless (eq (lglyph-char g) 32)
-         (cl-incf width (lglyph-width g))))
-     gline)
-    width))
+  "Return the width of GLINE in pixels, ignoring whitespace."
+  (pj-reduce (lambda (acc it)
+               (if (eq (lglyph-char it) 32) acc (+ acc (lglyph-width it))))
+             0 gline))
 
 (defun pj-get-line-spaces ()
   "Return number of spaces in GLINE."

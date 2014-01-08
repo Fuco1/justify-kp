@@ -9,6 +9,7 @@ Paragraph justification for emacs using Knuth/Plass algorithm
 * [ ] hyphenation
 * [ ] character protrusion, i.e. extending W, Q, V, Y etc. out of the margins a bit to get better optical whitespace. It is very similar to hanging punctuation in effect.
 * [ ] kerning around special characters (useful for quotes, parens etc.)
+* [X] mixed fonts in the same paragraph
 
 See also: http://www.khirevich.com/latex/microtype/
 
@@ -21,3 +22,7 @@ Comparsions of `M-q` (top) and the present implementation (bottom). Right now th
 ![](http://i.imgur.com/ibZGDLZ.png)
 
 ![](http://i.imgur.com/tJviUxp.png)
+
+We can also do mixed-fonts!
+
+![](http://i.imgur.com/B1Z3awR.png)

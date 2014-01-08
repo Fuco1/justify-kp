@@ -24,9 +24,21 @@
   :group 'justify-kp
   :type '(repeat (list string float)))
 
-(defun pj-get-gstring (from to font-object string)
-  (setq string (string-to-multibyte string))
-  (copy-tree (composition-get-gstring from to font-object string) t))
+(defun pj--get-gstring (from to &optional font-object string)
+  "Return a gstring representation of buffer text between FROM
+and TO.
+
+If optional argument FONT-OBJECT is non-nil, use this font.
+Defaults to (font-at FROM).
+
+If optional argument STRING is non-nil, use this as the target
+instead of current buffer."
+  (setq font-object (or font-object (font-at from)))
+  (if string
+      (copy-tree (composition-get-gstring from to font-object (string-to-multibyte string)) t)
+    (setq string (string-to-multibyte
+                  (buffer-substring-no-properties from to)))
+    (copy-tree (composition-get-gstring 0 (length string) font-object string) t)))
 
 (defun pj-mapcar (fun gline)
   "Call FUN on each glyph of GLINE and return the list of
@@ -69,7 +81,7 @@ The reduction is left-associative."
                 (line-beginning-position)
                 (line-end-position)))
          (font (font-at p))
-         (gline (pj-get-gstring 0 (length line) font line)))
+         (gline (pj--get-gstring 0 (length line) font line)))
     gline))
 
 (defun pj-get-line-width (gline)
@@ -93,7 +105,7 @@ It is assumed the font does not change in this interval."
   "Get width of STRING as if it were inserted at current point in current buffer.
 
 If AT is non-nil and number, assume font at that buffer position."
-  (let ((gstring (pj-get-gstring 0 (length string) (font-at (or at (point))) string)))
+  (let ((gstring (pj--get-gstring 0 (length string) (font-at (or at (point))) string)))
     (apply '+ (pj-mapcar 'lglyph-width gstring))))
 
 (defun pj-get-space-width (gline)

@@ -12,16 +12,17 @@
   "Goal width of each line."
   :group 'justify-kp
   :type 'integer)
+(make-variable-buffer-local 'pj-line-width)
 
 (defcustom pj-demerits-line 10
   "Value which a linebreak contributes to break-point demerits."
   :group 'justify-kp
   :type 'integer)
 
-(defcustom pj-hanging-punctuation '("." ",")
+(defcustom pj-hanging-punctuation '(("." 0.5) ("," 0.5))
   "Punctuation that should extend after the right margin."
   :group 'justify-kp
-  :type '(repeat string))
+  :type '(repeat (list string float)))
 
 (defun pj-get-gstring (from to font-object string)
   (setq string (string-to-multibyte string))

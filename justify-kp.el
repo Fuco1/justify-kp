@@ -337,11 +337,7 @@ This signifies that the active node should be disactivated."
          ;; beware the car/cdr hacking! It modifies the tokens
          ;; inplace, but I can live with that for now
          (when rem-ind
-           (mapc
-            (lambda (ind)
-              (setq active-nodes (remove-if (lambda (_) t) active-nodes :start ind :end (1+ ind))))
-            rem-ind))
-         ;; TODO: fix `-remove-at-indices' (-flatten breaks things)
+           (setq active-nodes (-remove-at-indices rem-ind active-nodes)))
          (when break-points
            (setq active-nodes (-concat active-nodes (list cn)))
            (let* ((best (-min-by (-on '> (lambda (x) (+ (plist-get x :demerits)

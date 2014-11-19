@@ -23,7 +23,7 @@
   :group 'justify-kp
   :type 'integer)
 
-(defcustom pj-hanging-punctuation '(("." 0.5) ("," 0.5))
+(defcustom pj-hanging-punctuation '(("." 0.5) ("," 0.5) ("—" 0.5) ("-" 0.5))
   "Punctuation that should extend after the right margin."
   :group 'justify-kp
   :type '(repeat (list string float)))

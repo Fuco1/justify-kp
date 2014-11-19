@@ -3,6 +3,10 @@
 (require 'dash)
 (require 'dash-functional)
 
+;; TODO: - and — should always be treated as word delimiter (and also
+;; other punctuation)
+;; TODO: — should be hanging punctuation
+
 (defgroup justify-kp ()
   "Text/paragraph justification using Knuth/Plass algorithm."
   :group 'convenience
@@ -192,7 +196,9 @@ This function assumes there is a space character in GLINE."
   `(plist-get ,glyph-data ,prop))
 
 ;; this assumes one glue always follows one box -- I think any other
-;; situation can be reduced to this anyway
+;; situation can be reduced to this anyway.
+;;   - when we have foo-bar-baz we need to take this as multiple boxes
+;;     with glue of zero width
 
 ;; TODO: above function needs to be reworked to take changes in
 ;; text-properties into account.  Input should be a point in buffer:

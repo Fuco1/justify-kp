@@ -492,3 +492,29 @@ This is the opposite of fill-paragraph."
     (let ((end (progn (forward-paragraph) (point)))
           (start (progn (backward-paragraph) (point))))
       (pj-remove-tp start end))))
+
+(defun pj-justify-paragraph-2 ()
+  (interactive)
+  (save-excursion
+    (pj-unjustify-paragraph)
+    (let ((beg-of-par (progn
+                        (forward-paragraph)
+                        (backward-paragraph)
+                        (forward-line)
+                        (point)))
+          ;; (prev-relevant-bp (let ((visual-line-mode t)
+          ;;                         (line-move-visual t))
+          ;;                     (beginning-of-visual-line)
+          ;;                     (previous-line)
+          ;;                     (point)))
+          )
+      (goto-char (max beg-of-par;;  prev-relevant-bp
+                      )))
+    (pj-breaklines (pj--get-line-tokens))))
+
+(defun pj-justify-paragraph-and-move ()
+  (interactive)
+  (pj-justify-paragraph-2)
+  (forward-paragraph 2)
+  (backward-paragraph)
+  (forward-line))

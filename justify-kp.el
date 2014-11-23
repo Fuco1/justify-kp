@@ -220,6 +220,18 @@ token in the buffer where these were produced."
 TOKENB should be the more advanced one."
   (- (plist-get tokenb :total-width) (plist-get tokena :total-width)))
 
+(defun pj--get-token-diff-width-with-hp (tokena tokenb)
+  "Return total width difference between TOKENA and TOKENB, taking hanging punctuation into account.
+
+TOKENB should be the more advanced one."
+  (-let* ((real-diff (pj--get-token-diff-width tokena tokenb))
+          ((&plist :value value :widths widths) tokenb)
+          (last-char (-last-item (string-to-list value)))
+          (last-char-width (-last-item widths)))
+    (-when-let (ratio (cadr (assoc (char-to-string last-char) pj-hanging-punctuation)))
+      (setq real-diff (- real-diff (* ratio last-char-width))))
+    real-diff))
+
 (defun pj--get-token-diff-shrink (tokena tokenb)
   "Return total shrink difference between TOKENA and TOKENB.
 
@@ -234,7 +246,7 @@ TOKENB should be the more advanced one."
 
 (defun pj--break-badness (active-node current-node)
   "Calculate badness for a line from ACTIVE-NODE to CURRENT-NODE."
-  (let* ((diff-width (pj--get-token-diff-width active-node current-node))
+  (let* ((diff-width (pj--get-token-diff-width-with-hp active-node current-node))
          (diff-shrink (pj--get-token-diff-shrink active-node current-node))
          (diff-stretch (pj--get-token-diff-stretch active-node current-node))
          (adjustment (- (pj-line-width) diff-width))
@@ -252,14 +264,14 @@ TOKENB should be the more advanced one."
 
 (defun pj--too-close-p (active-node current-node)
   "Return non-nil if ACTIVE-NODE and CURRENT-NODE are too close for a breakpoint."
-  (< (+ (pj--get-token-diff-width active-node current-node)
+  (< (+ (pj--get-token-diff-width-with-hp active-node current-node)
         (pj--get-token-diff-stretch active-node current-node))
      (pj-line-width)))
 
 (defun pj--too-distant-p (active-node current-node)
   "Return non-nil if ACTIVE-NODE and CURRENT-NODE are too distant for a breakpoint."
   (< (pj-line-width)
-     (- (pj--get-token-diff-width active-node current-node)
+     (- (pj--get-token-diff-width-with-hp active-node current-node)
         (pj--get-token-diff-shrink active-node current-node))))
 
 (defun pj--possible-break-point-p (active-node current-node)
@@ -353,38 +365,50 @@ ACTIVE-NODES should be compatible with output of `pj--justify'."
            (lbp (plist-get (car break-points) :parent)))
       (-each break-points
         (lambda (bp)
-          (-let* (((cur-line rest) (--split-with (/= (plist-get it :index) (plist-get bp :index)) line)))
-            (let* ((last-token (if (eq (plist-get bp :type) 'split) bp (-last-item cur-line)))
-                   (width (pj--get-token-diff-width lbp last-token))
-                   (stretch (pj--get-token-diff-stretch lbp last-token))
-                   (shrink (pj--get-token-diff-shrink lbp last-token))
-                   (adjustment (- (pj-line-width) width))
-                   (adj-ratio (cond
-                               ((<= adjustment 0)
-                                (max -1 (/ (float adjustment) shrink)))
-                               ((> adjustment 0)
-                                (/ (float adjustment) stretch))))
-                   (overflow 0.0))
-              (-each cur-line
-                (lambda (lt)
-                  (let ((len (length (plist-get lt :value))))
-                    (forward-char len)
-                    (when (eq (plist-get lt :type) 'white)
-                      (let* ((width (plist-get lt :width))
-                             (disp-width (+ width (* (if (<= adj-ratio 0)
-                                                         (plist-get lt :shrink)
-                                                       (plist-get lt :stretch))
-                                                     adj-ratio)))
-                             (disp-width-whole (floor disp-width))
-                             (disp-width-decimal (- disp-width disp-width-whole))
-                             (current-width (if (progn
-                                                  (setq overflow (+ overflow disp-width-decimal))
-                                                  (< overflow 1))
-                                                disp-width-whole
-                                              (setq overflow (1- overflow))
-                                              (1+ disp-width-whole))))
-                        (put-text-property (- (point) len) (point)
-                                           'display `(space :width (,current-width)))))))))
+          (-let* (((cur-line rest) (--split-with (/= (plist-get it :index) (plist-get bp :index)) line))
+                  (last-token (if (eq (plist-get bp :type) 'split) bp (-last-item cur-line)))
+                  ;; Add hanging punctuation support.  We shorten the
+                  ;; apparent width of the line but leave the
+                  ;; stretch/shrink as it is, that means the
+                  ;; punctuation will get pushed out of the margin
+                  ((&plist :value lt-value :widths lt-widths) last-token)
+                  (last-char (-last-item (string-to-list lt-value)))
+                  (last-char-width (-last-item lt-widths))
+                  (last-token (-if-let (ratio (cadr (assoc (char-to-string last-char) pj-hanging-punctuation)))
+                                  (plist-put (-copy last-token) :total-width
+                                             (- (plist-get last-token :total-width)
+                                                (* ratio last-char-width)))
+                                last-token))
+                  (width (pj--get-token-diff-width lbp last-token))
+                  (stretch (pj--get-token-diff-stretch lbp last-token))
+                  (shrink (pj--get-token-diff-shrink lbp last-token))
+                  (adjustment (- (pj-line-width) width))
+                  (adj-ratio (cond
+                              ((<= adjustment 0)
+                               (max -1 (/ (float adjustment) shrink)))
+                              ((> adjustment 0)
+                               (/ (float adjustment) stretch))))
+                  (overflow 0.0))
+            (-each cur-line
+              (lambda (lt)
+                (let ((len (length (plist-get lt :value))))
+                  (forward-char len)
+                  (when (eq (plist-get lt :type) 'white)
+                    (let* ((width (plist-get lt :width))
+                           (disp-width (+ width (* (if (<= adj-ratio 0)
+                                                       (plist-get lt :shrink)
+                                                     (plist-get lt :stretch))
+                                                   adj-ratio)))
+                           (disp-width-whole (floor disp-width))
+                           (disp-width-decimal (- disp-width disp-width-whole))
+                           (current-width (if (progn
+                                                (setq overflow (+ overflow disp-width-decimal))
+                                                (< overflow 1))
+                                              disp-width-whole
+                                            (setq overflow (1- overflow))
+                                            (1+ disp-width-whole))))
+                      (put-text-property (- (point) len) (point)
+                                         'display `(space :width (,current-width))))))))
             (setq lbp (car rest))
             (let ((type (plist-get lbp :type))
                   (len (length (plist-get lbp :value))))

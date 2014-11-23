@@ -1,5 +1,58 @@
-;; WIP version
+;;; justify-kp-new.el --- Justify paragraphs using Knuth/Plass algorithm
+
+;; Copyright (C) 2014 Matúš Goljer <matus.goljer@gmail.com>
+
+;; Author: Matúš Goljer <matus.goljer@gmail.com>
+;; Maintainer: Matúš Goljer <matus.goljer@gmail.com>
+;; Version: 0.0.1
+;; Created: 23th November 2014
+;; Package-requires: ((dash "2.9.0") (dash-functional "1.1.0"))
+;; Keywords: convenience
+
+;; This program is free software; you can redistribute it and/or
+;; modify it under the terms of the GNU General Public License
+;; as published by the Free Software Foundation; either version 3
+;; of the License, or (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+;;; Commentary:
+
+;;; Code:
+(require 'dash)
+(require 'dash-functional)
+
+
+;; Window routines
+(defun pj--get-window-width ()
+  "Get usable window width in pixels."
+  (-let* (((left _ right) (window-pixel-edges))
+          ((fleft fright) (window-fringes)))
+    (- (- right fright) (+ left fleft))))
+
+(defun pj--get-working-window-width ()
+  "Get usable window width minus a working buffer in pixels."
+  ;; make the 10 customizable
+  (- (pj--get-window-width) (* 10 (frame-char-width))))
+
+(defun pj-line-width ()
+  "Return preferred line width."
+  ;; TODO: make this overridable by a defcustom: use a constant, use working ww
+  (pj--get-working-window-width))
+
+
 ;; GString routines
+(defun pj--mapc-gstring (fun gstring)
+  "Call FUN on each glyph of GSTRING for side effect only."
+  (let ((ln (lgstring-char-len gstring)))
+    (--dotimes ln (funcall fun (lgstring-glyph gstring it)))))
+
 (defun pj--buffer-subgstring (from to)
   "Return a gstring representing buffer text between FROM and TO.
 
@@ -9,33 +62,56 @@ change."
         (str (string-to-multibyte (buffer-substring-no-properties from to))))
     (copy-tree (composition-get-gstring 0 (length str) font str) t)))
 
-;; TODO: this is unused, remove?
-(defun pj-map-gstring (fun gstring)
-  "Call FUN on each glyph of GSTRING and return the list of
-results."
-  (let ((re nil)
-        (ln (lgstring-char-len gstring)))
-    (--dotimes ln
-      (push (funcall fun (lgstring-glyph gstring it)) re))
+(defun pj--next-font-change (&optional p limit)
+  "Move point to next position where font changes.
+
+If optional argument P is a number, start from that position,
+defaults to current position.
+
+If optional argument LIMIT is a number, do not extend the search
+further than this position.  If no font change was found, the
+point will be at the LIMIT position or end of file (if this is
+smaller) after the function returns."
+  (setq p (or p (point)))
+  (setq limit (min (or limit (point-max)) (point-max)))
+  (goto-char p)
+  (flet ((get-next-font-name
+          ()
+          (let ((np (or (next-property-change p) limit)))
+            (if (>= np limit)
+                (setq p limit)
+              (elt (font-info (font-at (setq p (goto-char np)))) 0)))))
+    (let ((current-font (elt (font-info (font-at p)) 0)))
+      (while (equal current-font (get-next-font-name)))
+      (goto-char p))))
+
+(defun pj--get-line-data ()
+  "Get characters and their widths on current line.
+
+Respects font changes."
+  (let ((limit (1- (cdr (bounds-of-thing-at-point 'line))))
+        (last-change (point))
+        next-change gline re)
+    (while (< (point) limit)
+      (setq next-change (pj--next-font-change (point) limit))
+      (setq gline (pj--buffer-subgstring last-change next-change))
+      (setq last-change next-change)
+      (pj--mapc-gstring
+       (lambda (g)
+         (push (list :char (lglyph-char g) :width (lglyph-width g)) re))
+       gline))
     (nreverse re)))
-
-;; TODO: make this more efficient and only traverse the list once
-(defun -map-partition (n fun list)
-  (-map fun (-partition n list)))
-
-;; punctuation should always attach to preceding word, unless it's an opening quote: "adas
 
 (defun pj-line-at-point ()
   "Like (thing-at-point 'line) but with initial whitespace trimmed."
   (s-trim (thing-at-point 'line)))
 
-(defvar pj-punctuation-class '(?, ?. ?? ?! ?\" ?\'))
-(defvar pj-splitpoint-class '(?- ?—))
-(defvar pj-whitespace-class '(? )) ;; we allow splits on whitespace automatically
-(defvar pj-tokenizer-states '(word white split))
+(defvar pj--punctuation-class '(?, ?. ?? ?! ?\" ?\'))
+(defvar pj--splitpoint-class '(?- ?—))
+(defvar pj--whitespace-class '(? )) ;; we allow splits on whitespace automatically
 
 (defun pj--get-string-tokens ()
-  "Split the line in tokens for analysis."
+  "Split the current line in string tokens."
   (flet ((push-char () (push char token))
          (push-tok-char () (push (reverse token) tokens) (setq token (list char))))
     (let ((line (string-to-list (pj-line-at-point)))
@@ -47,17 +123,17 @@ results."
           (cond
            ((eq state 'word)
             (cond
-             ((memq char pj-whitespace-class)
+             ((memq char pj--whitespace-class)
               (push-tok-char)
               (setq state 'white))
-             ((memq char pj-splitpoint-class)
+             ((memq char pj--splitpoint-class)
               (push-tok-char)
               (setq state 'split))
              (t (push-char))))
            ((eq state 'white)
             (cond
-             ((memq char pj-whitespace-class) (push-char))
-             ((memq char pj-splitpoint-class)
+             ((memq char pj--whitespace-class) (push-char))
+             ((memq char pj--splitpoint-class)
               (push-tok-char)
               (setq state 'split))
              (t
@@ -66,42 +142,50 @@ results."
            ((eq state 'split)
             (push-tok-char)
             (cond
-             ((memq char pj-whitespace-class) (setq setq 'white))
-             ((memq char pj-splitpoint-class) (setq state 'split))
+             ((memq char pj--whitespace-class) (setq setq 'white))
+             ((memq char pj--splitpoint-class) (setq state 'split))
              (t (setq state 'word)))))))
       (push (reverse token) tokens)
       (list :length (length line)
             :tokens (--map (apply 'string it) (nreverse tokens))))))
 
-(defun pj--get-tokens (string-tokens)
-  "Assumes the point is at the first character of the first
-string token in the buffer where these were produced."
-  (-let* (((&plist :length length :tokens tokens) string-tokens)
+(defun pj--get-tokens ()
+  "Construct list of tokens for analysis.
+
+Assumes the point is at the first character of the first string
+token in the buffer where these were produced."
+  (-let* (((&plist :length length :tokens tokens) (pj--get-string-tokens))
           ;; TODO: assumes the entire line is the same font.  We
           ;; should have a more elaborate method to return the correct
-          ;; glyph sizes if there are multiple fonts active
-          ([_ _ &rest gstr] (pj--buffer-subgstring (point) (+ (point) length)))
-          (gstr (append gstr nil))
+          ;; glyph sizes if there are multiple fonts active (see
+          ;; `pj--get-line-data' in old implementation)
+          ;; ([_ _ &rest gstr] (pj--buffer-subgstring (point) (+ (point) length)))
+          (gstr (save-excursion (pj--get-line-data)))
+          ;; (gstr (append gstr nil))
           (total-width 0)
           (total-shrink 0)
-          (total-stretch 0))
+          (total-stretch 0)
+          (index 0))
     (list :length length
           :tokens (-map
                    (lambda (token)
                      (-let* ((len (length token))
                              ((cur rest) (-split-at len gstr))
-                             (widths (-map 'lglyph-width cur))
-                             (is-whitespace (memq (elt token 0) pj-whitespace-class))
+                             ;; (widths (-map 'lglyph-width cur))
+                             (widths (--map (plist-get it :width) cur))
+                             (is-whitespace (memq (elt token 0) pj--whitespace-class))
                              (width (if is-whitespace (car widths) (-sum widths)))
                              ;; TODO: add shrink tolerance setting here
                              (shrink (if is-whitespace (ceiling (* width 0.33)) 0))
                              ;; TODO: add stretch tolerance setting here
-                             (stretch (if is-whitespace (ceiling (* width 1.0)) 0)))
+                             (stretch (if is-whitespace (ceiling (* width 0.5)) 0)))
                        (prog1 (list :type (cond
                                            (is-whitespace 'white)
-                                           ((memq (elt token 0) pj-splitpoint-class) 'split)
+                                           ((memq (elt token 0) pj--splitpoint-class) 'split)
                                            (t 'box))
                                     :value token
+                                    :index (prog1 index
+                                             (setq index (1+ index)))
                                     :width width
                                     :total-width (setq total-width (+ total-width width))
                                     :shrink shrink
@@ -109,46 +193,188 @@ string token in the buffer where these were produced."
                                     :stretch stretch
                                     :total-stretch (setq total-stretch (+ total-stretch stretch))
                                     :widths widths)
-                         (forward-char len)
                          (setq gstr rest))))
                    tokens))))
 
-(defun pj--get-line ()
-  "Get tokens for calculating break points of current paragraph."
-  (save-excursion
-    (pj--get-tokens (pj--get-string-tokens))))
+(defun pj--break-badness (active-node current-node)
+  "Calculate badness for a line from ACTIVE-NODE to CURRENT-NODE."
+  (let* ((diff-width (pj--get-token-diff-width active-node current-node))
+         (diff-shrink (pj--get-token-diff-shrink active-node current-node))
+         (diff-stretch (pj--get-token-diff-stretch active-node current-node))
+         (adjustment (- (pj-line-width) diff-width))
+         (adj-ratio (cond
+                     ((<= adjustment 0)
+                      (/ (float adjustment) diff-shrink))
+                     ((> adjustment 0)
+                      (/ (float adjustment) diff-stretch)))))
+    (+ (* (expt (abs adj-ratio) 3) 100) 0.5)))
+
+(defun pj--break-demerits (active-node current-node)
+  "Calculate demerits for a line from ACTIVE-NODE to CURRENT-NODE."
+  (let ((badness (pj--break-badness active-node current-node)))
+    (expt (+ pj-demerits-line badness) 2)))
 
 (defun pj--get-token-diff-width (tokena tokenb)
+  "Return total width difference between TOKENA and TOKENB.
+
+TOKENB should be the more advanced one."
   (- (plist-get tokenb :total-width) (plist-get tokena :total-width)))
 
 (defun pj--get-token-diff-shrink (tokena tokenb)
+  "Return total shrink difference between TOKENA and TOKENB.
+
+TOKENB should be the more advanced one."
   (- (plist-get tokenb :total-shrink) (plist-get tokena :total-shrink)))
 
 (defun pj--get-token-diff-stretch (tokena tokenb)
+  "Return total stretch difference between TOKENA and TOKENB.
+
+TOKENB should be the more advanced one."
   (- (plist-get tokenb :total-stretch) (plist-get tokena :total-stretch)))
 
-;; Breakpoints are always either whitespace tokens or split tokens.
-;; To calculate lenght of the "current" line wrt breakpoint, all we
-;; need to do is to get the difference of precomputed total-* values
+(defun pj--too-close-p (active-node current-node)
+  "Return non-nil if ACTIVE-NODE and CURRENT-NODE are too close for a breakpoint."
+  (< (+ (pj--get-token-diff-width active-node current-node)
+        (pj--get-token-diff-stretch active-node current-node))
+     (pj-line-width)))
 
-;; This function should be pure.
+(defun pj--too-distant-p (active-node current-node)
+  "Return non-nil if ACTIVE-NODE and CURRENT-NODE are too distant for a breakpoint."
+  (< (pj-line-width)
+     (- (pj--get-token-diff-width active-node current-node)
+        (pj--get-token-diff-shrink active-node current-node))))
+
+(defun pj--possible-break-point-p (active-node current-node)
+  "Return non-nil if a breakpoint for line between ACTIVE-NODE and CURRENT-NODE is possible."
+  (and (not (pj--too-close-p active-node current-node))
+       (not (pj--too-distant-p active-node current-node))))
+
+;; This function should be kept pure.
 (defun pj--justify (tokens)
+  "Find all possible justifications of TOKENS."
   (-let* (((&plist :length length :tokens tokens) tokens)
-          (active-nodes nil))
+          (active-nodes (list (list :type 'init :value "" :width 0 :total-width 0 :shrink 0
+                                    :total-shrink 0 :stretch 0 :total-stretch 0 :demerits 0 :widths nil))))
     (while tokens
-      (-let* (((cur next) tokens)
+      (-let* (((prev cur next) tokens)
+              ((&plist :type prev-type) prev)
               ((&plist :type cur-type) cur)
-              ((&plist :type next-type) next))
+              ((&plist :type next-type) next)
+              (possible-break-points nil)
+              (rem-ind nil))
         (cond
-         ;; Possible breakpoint.  The whitespace should disappear, its
-         ;; width is not counted towards this line's width / shrink /
-         ;; stretch.
-         ((and (eq cur-type 'white)
-               (eq next-type 'box)))
-         ;; Possible breakpoint.  The split point's width is counted
-         ;; towards this line's total width.
-         ((and (eq cur-type 'split)
-               (eq next-type 'box)))
-         (t (!cdr tokens))))
-      ))
-  )
+         ;; TODO: check if box isn't punctuation, single letter
+         ;; preposition etc...
+         ((and (or
+                ;; Possible breakpoint.  The whitespace should disappear, its
+                ;; width is not counted towards this line's width / shrink /
+                ;; stretch.
+                (eq cur-type 'white)
+                ;; Possible breakpoint.  The split point's width is counted
+                ;; towards this line's total width.
+                (eq cur-type 'split))
+               (eq next-type 'box))
+          (let ((comp (if (eq cur-type 'white) prev cur)))
+            (-each active-nodes
+              (lambda (an)
+                (when (pj--too-distant-p an comp)
+                  (push it-index rem-ind))
+                (when (pj--possible-break-point-p an comp)
+                  (let ((bp (-concat
+                             (list :parent an
+                                   :demerits (+ (plist-get an :demerits)
+                                                (pj--break-demerits an comp)))
+                             cur)))
+                    (push bp possible-break-points))))))
+          (let ((new-active-nodes (if rem-ind
+                                      (-remove-at-indices rem-ind active-nodes)
+                                    active-nodes)))
+            (if possible-break-points
+                (let ((best (-min-by (-on '> (lambda (x) (plist-get x :demerits))) possible-break-points)))
+                  (setq active-nodes (-concat new-active-nodes (list best))))
+              (if new-active-nodes
+                  (setq active-nodes new-active-nodes)
+                ;; If we have an overly long line, we'd still rather
+                ;; break it here than error out.  So if no active nodes
+                ;; are left, we pick the best of the old ones and start
+                ;; from zero, breaking at current position.
+                (let ((best-active-node (pj--get-best-active-node active-nodes)))
+                  (setq active-nodes (list (-concat
+                                            (list :parent best-active-node
+                                                  :demerits 0)
+                                            cur)))))))
+          (!cdr tokens)
+          (!cdr tokens))
+         (t (!cdr tokens)))))
+    active-nodes))
+
+(defun pj--get-best-active-node (active-nodes)
+  "Get the best justification from ACTIVE-NODES.
+
+ACTIVE-NODES should be compatible with output of `pj--justify'."
+  (-min-by (-on '> (lambda (x) (plist-get x :demerits))) active-nodes))
+
+(defun pj-justify ()
+  "Justify current line using Knuth/Plass algorithm."
+  (interactive)
+  (save-excursion
+    (let* ((line (pj--get-tokens))
+           (active-nodes (pj--justify line))
+           (line (plist-get line :tokens))
+           (raw-break-points (pj--get-best-active-node active-nodes))
+           (break-points (let ((re (list raw-break-points)))
+                           (while (setq raw-break-points
+                                        (plist-get raw-break-points :parent))
+                             (push raw-break-points re))
+                           (cdr re)))
+           (lbp (plist-get (car break-points) :parent)))
+      (-each break-points
+        (lambda (bp)
+          (-let* (((cur-line rest) (--split-with (/= (plist-get it :index) (plist-get bp :index)) line)))
+            (let* ((last-token (if (eq (plist-get bp :type) 'split) bp (-last-item cur-line)))
+                   (width (pj--get-token-diff-width lbp last-token))
+                   (stretch (pj--get-token-diff-stretch lbp last-token))
+                   (shrink (pj--get-token-diff-shrink lbp last-token))
+                   (adjustment (- (pj-line-width) width))
+                   (adj-ratio (cond
+                               ((<= adjustment 0)
+                                (max -1 (/ (float adjustment) shrink)))
+                               ((> adjustment 0)
+                                (/ (float adjustment) stretch))))
+                   (overflow 0.0))
+              (-each cur-line
+                (lambda (lt)
+                  (let ((len (length (plist-get lt :value))))
+                    (forward-char len)
+                    (when (eq (plist-get lt :type) 'white)
+                      (let* ((width (plist-get lt :width))
+                             (disp-width (+ width (* (if (<= adj-ratio 0)
+                                                         (plist-get lt :shrink)
+                                                       (plist-get lt :stretch))
+                                                     adj-ratio)))
+                             (disp-width-whole (floor disp-width))
+                             (disp-width-decimal (- disp-width disp-width-whole))
+                             (current-width (if (progn
+                                                  (setq overflow (+ overflow disp-width-decimal))
+                                                  (< overflow 1))
+                                                disp-width-whole
+                                              (setq overflow (1- overflow))
+                                              (1+ disp-width-whole))))
+                        (put-text-property (- (point) len) (point)
+                                           'display `(space :width (,current-width)))))))))
+            (setq lbp (car rest))
+            (let ((type (plist-get lbp :type))
+                  (len (length (plist-get lbp :value))))
+              (forward-char len)
+              (cond
+               ((eq type 'white)
+                (put-text-property (- (point) len)
+                                   (point) 'display "\n"))
+               ((eq type 'split)
+                (put-text-property (- (point) len)
+                                   (point) 'display (concat (plist-get lbp :value) "\n")))))
+            (!cdr rest)
+            (setq line rest)))))))
+
+(provide 'justify-kp-new)
+;;; justify-kp-new.el ends here

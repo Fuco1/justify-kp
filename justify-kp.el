@@ -54,7 +54,7 @@ real width."
   :group 'justify-kp
   :type 'float)
 
-(defcustom pj-hanging-punctuation '(("." 0.5) ("," 0.5) ("—" 0.3) ("-" 0.5))
+(defcustom pj-hanging-punctuation '(("." 0.5) ("," 0.5) ("—" 0.2) ("-" 0.5))
   "Punctuation that should extend after the right margin.
 
 The numeric value specifies multiple of the regular width that

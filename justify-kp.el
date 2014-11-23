@@ -214,24 +214,6 @@ token in the buffer where these were produced."
                          (setq gstr rest))))
                    tokens))))
 
-(defun pj--break-badness (active-node current-node)
-  "Calculate badness for a line from ACTIVE-NODE to CURRENT-NODE."
-  (let* ((diff-width (pj--get-token-diff-width active-node current-node))
-         (diff-shrink (pj--get-token-diff-shrink active-node current-node))
-         (diff-stretch (pj--get-token-diff-stretch active-node current-node))
-         (adjustment (- (pj-line-width) diff-width))
-         (adj-ratio (cond
-                     ((<= adjustment 0)
-                      (/ (float adjustment) diff-shrink))
-                     ((> adjustment 0)
-                      (/ (float adjustment) diff-stretch)))))
-    (+ (* (expt (abs adj-ratio) 3) 100) 0.5)))
-
-(defun pj--break-demerits (active-node current-node)
-  "Calculate demerits for a line from ACTIVE-NODE to CURRENT-NODE."
-  (let ((badness (pj--break-badness active-node current-node)))
-    (expt (+ pj-demerits-line badness) 2)))
-
 (defun pj--get-token-diff-width (tokena tokenb)
   "Return total width difference between TOKENA and TOKENB.
 
@@ -249,6 +231,24 @@ TOKENB should be the more advanced one."
 
 TOKENB should be the more advanced one."
   (- (plist-get tokenb :total-stretch) (plist-get tokena :total-stretch)))
+
+(defun pj--break-badness (active-node current-node)
+  "Calculate badness for a line from ACTIVE-NODE to CURRENT-NODE."
+  (let* ((diff-width (pj--get-token-diff-width active-node current-node))
+         (diff-shrink (pj--get-token-diff-shrink active-node current-node))
+         (diff-stretch (pj--get-token-diff-stretch active-node current-node))
+         (adjustment (- (pj-line-width) diff-width))
+         (adj-ratio (cond
+                     ((<= adjustment 0)
+                      (/ (float adjustment) diff-shrink))
+                     ((> adjustment 0)
+                      (/ (float adjustment) diff-stretch)))))
+    (+ (* (expt (abs adj-ratio) 3) 100) 0.5)))
+
+(defun pj--break-demerits (active-node current-node)
+  "Calculate demerits for a line from ACTIVE-NODE to CURRENT-NODE."
+  (let ((badness (pj--break-badness active-node current-node)))
+    (expt (+ pj-demerits-line badness) 2)))
 
 (defun pj--too-close-p (active-node current-node)
   "Return non-nil if ACTIVE-NODE and CURRENT-NODE are too close for a breakpoint."

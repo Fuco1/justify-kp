@@ -28,6 +28,24 @@
 (require 'dash)
 (require 'dash-functional)
 
+(defgroup justify-kp ()
+  "Justify paragraphs using Knuth/Plass algorithm."
+  :group 'convenience
+  :prefix "pj-")
+
+(defcustom pj-demerits-line 10
+  "Value which a linebreak contributes to break-point demerits."
+  :group 'justify-kp
+  :type 'integer)
+
+(defcustom pj-hanging-punctuation '(("." 0.5) ("," 0.5) ("—" 0.3) ("-" 0.5))
+  "Punctuation that should extend after the right margin.
+
+The numeric value specifies multiple of the regular width that
+can overlap the margin."
+  :group 'justify-kp
+  :type '(repeat (list string float)))
+
 
 ;; Window routines
 (defun pj--get-window-width ()

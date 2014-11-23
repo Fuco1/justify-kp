@@ -38,6 +38,22 @@
   :group 'justify-kp
   :type 'integer)
 
+(defcustom pj-shrink-ratio 0.33
+  "Whitespace shrink ratio.
+
+A whitespace token can be shrinked at most this multiple of its
+real width."
+  :group 'justify-kp
+  :type 'float)
+
+(defcustom pj-stretch-ratio 0.8
+  "Whitespace stretch ratio.
+
+A whitespace token can be stretched at most this multiple of its
+real width."
+  :group 'justify-kp
+  :type 'float)
+
 (defcustom pj-hanging-punctuation '(("." 0.5) ("," 0.5) ("—" 0.3) ("-" 0.5))
   "Punctuation that should extend after the right margin.
 
@@ -193,10 +209,8 @@ token in the buffer where these were produced."
                              (widths (--map (plist-get it :width) cur))
                              (is-whitespace (memq (elt token 0) pj--whitespace-class))
                              (width (if is-whitespace (car widths) (-sum widths)))
-                             ;; TODO: add shrink tolerance setting here
-                             (shrink (if is-whitespace (ceiling (* width 0.33)) 0))
-                             ;; TODO: add stretch tolerance setting here
-                             (stretch (if is-whitespace (ceiling (* width 0.5)) 0)))
+                             (shrink (if is-whitespace (ceiling (* width pj-shrink-ratio)) 0))
+                             (stretch (if is-whitespace (ceiling (* width pj-stretch-ratio)) 0)))
                        (prog1 (list :type (cond
                                            (is-whitespace 'white)
                                            ((memq (elt token 0) pj--splitpoint-class) 'split)

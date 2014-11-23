@@ -189,13 +189,7 @@ Respects font changes."
 Assumes the point is at the first character of the first string
 token in the buffer where these were produced."
   (-let* (((&plist :length length :tokens tokens) (pj--get-string-tokens))
-          ;; TODO: assumes the entire line is the same font.  We
-          ;; should have a more elaborate method to return the correct
-          ;; glyph sizes if there are multiple fonts active (see
-          ;; `pj--get-line-data' in old implementation)
-          ;; ([_ _ &rest gstr] (pj--buffer-subgstring (point) (+ (point) length)))
-          (gstr (save-excursion (pj--get-line-data)))
-          ;; (gstr (append gstr nil))
+          (line-data (save-excursion (pj--get-line-data)))
           (total-width 0)
           (total-shrink 0)
           (total-stretch 0)
@@ -204,8 +198,7 @@ token in the buffer where these were produced."
           :tokens (-map
                    (lambda (token)
                      (-let* ((len (length token))
-                             ((cur rest) (-split-at len gstr))
-                             ;; (widths (-map 'lglyph-width cur))
+                             ((cur rest) (-split-at len line-data))
                              (widths (--map (plist-get it :width) cur))
                              (is-whitespace (memq (elt token 0) pj--whitespace-class))
                              (width (if is-whitespace (car widths) (-sum widths)))
@@ -225,7 +218,7 @@ token in the buffer where these were produced."
                                     :stretch stretch
                                     :total-stretch (setq total-stretch (+ total-stretch stretch))
                                     :widths widths)
-                         (setq gstr rest))))
+                         (setq line-data rest))))
                    tokens))))
 
 (defun pj--get-token-diff-width (tokena tokenb)

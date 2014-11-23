@@ -259,7 +259,7 @@ TOKENB should be the more advanced one."
       (-let* (((prev cur next) tokens)
               ((&plist :type prev-type) prev)
               ((&plist :type cur-type) cur)
-              ((&plist :type next-type) next)
+              ((&plist :type next-type :value next-value) next)
               (possible-break-points nil)
               (rem-ind nil))
         (cond
@@ -273,7 +273,12 @@ TOKENB should be the more advanced one."
                 ;; Possible breakpoint.  The split point's width is counted
                 ;; towards this line's total width.
                 (eq cur-type 'split))
-               (eq next-type 'box))
+               (eq next-type 'box)
+               (not (memq (elt next-value 0) pj--punctuation-class))
+               ;; In some languages, single-letter words can not start a line.
+               ;; (not (= (length next-value) 1))
+               ;; TODO: add more line-breaking conditions here
+               )
           (let ((comp (if (eq cur-type 'white) prev cur)))
             (-each active-nodes
               (lambda (an)

@@ -96,6 +96,7 @@ change."
         (str (string-to-multibyte (buffer-substring-no-properties from to))))
     (copy-tree (composition-get-gstring 0 (length str) font str) t)))
 
+;; doesn't handle font changes properly
 (defun pj--next-font-change (&optional p limit)
   "Move point to next position where font changes.
 
@@ -317,8 +318,8 @@ TOKENB should be the more advanced one."
                ;; TODO: add more line-breaking conditions here
                )
           (let ((comp (if (eq cur-type 'white) prev cur)))
-            (-each active-nodes
-              (lambda (an)
+            (-each-indexed active-nodes
+              (lambda (it-index an)
                 (when (pj--too-distant-p an comp)
                   (push it-index rem-ind))
                 (when (pj--possible-break-point-p an comp)

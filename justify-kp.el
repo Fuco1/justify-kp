@@ -1,4 +1,4 @@
-;;; justify-kp-new.el --- Justify paragraphs using Knuth/Plass algorithm
+;;; justify-kp.el --- Justify paragraphs using Knuth/Plass algorithm
 
 ;; Copyright (C) 2014 Matúš Goljer <matus.goljer@gmail.com>
 
@@ -431,5 +431,5 @@ ACTIVE-NODES should be compatible with output of `pj--justify'."
             (!cdr rest)
             (setq line rest)))))))
 
-(provide 'justify-kp-new)
-;;; justify-kp-new.el ends here
+(provide 'justify-kp)
+;;; justify-kp.el ends here

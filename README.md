@@ -1,6 +1,23 @@
 # justify-kp
 
-Paragraph justification for emacs using Knuth/Plass algorithm
+Paragraph justification for emacs using Knuth/Plass algorithm.
+
+# Usage
+
+The lowest level interactive command is `pj-justify`.  It justifies
+current line *after* the point.  You must place the point at the
+beginning of line and the line must have no line breaks (newlines)
+inside it.
+
+More convenient set of commands is `pj-justify-paragraph` and
+`pj-unjustify-paragraph`.  They can be called from anywhere inside
+current paragraph to justify or unjustify it.  Calling
+`pj-justify-paragraph` on an already justified paragraph will
+re-justify it.
+
+If you want to automatically re-justify paragraphs as you type, you
+can use `pj-auto-justify-mode`.  This is however a bit rough around
+the edges, so your mileage might vary.
 
 # What it supports so far?
 

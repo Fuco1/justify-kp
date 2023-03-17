@@ -6,7 +6,7 @@
 ;; Maintainer: Matúš Goljer <matus.goljer@gmail.com>
 ;; Version: 0.0.1
 ;; Created: 23th November 2014
-;; Package-requires: ((dash "2.18.0") (dash-functional "1.1.0"))
+;; Package-requires: ((dash "2.18.0") (s "0"))
 ;; Keywords: convenience
 
 ;; This program is free software; you can redistribute it and/or
@@ -26,7 +26,7 @@
 
 ;;; Code:
 (require 'dash)
-(require 'cl-lib)
+(require 's)
 
 (defgroup justify-kp ()
   "Justify paragraphs using Knuth/Plass algorithm."
@@ -358,7 +358,13 @@ ACTIVE-NODES should be compatible with output of `pj--justify'."
   (-min-by (-on '> (lambda (x) (plist-get x :demerits))) active-nodes))
 
 (defun pj-justify ()
-  "Justify current line using Knuth/Plass algorithm."
+  "Justify current line using Knuth/Plass algorithm.
+
+This is a low-level interactive function.  It must be called at
+the beginning of *unfilled* line.
+
+For more high-level interactive use, see: `pj-justify-paragraph',
+`pj-unjustify-paragraph', `pj-justify-paragraph-and-move'."
   (interactive)
   (save-excursion
     (let* ((line (pj--get-tokens))
@@ -430,6 +436,63 @@ ACTIVE-NODES should be compatible with output of `pj--justify'."
                                    (point) 'display (concat (plist-get lbp :value) "\n")))))
             (!cdr rest)
             (setq line rest)))))))
+
+(defun pj-remove-display-property (begin end)
+  "Remove display text property in a region between BEGIN and END."
+  (interactive "r")
+  (remove-text-properties begin end '(display)))
+
+(defun pj-unfill-paragraph ()
+  "Take a multi-line paragrap and make it into a single line of text.
+This is the opposite of fill-paragraph."
+  (interactive)
+  (let ((fill-column (point-max)))
+    (fill-paragraph nil)))
+
+(defun pj-unjustify-paragraph ()
+  "Unjustify current paragraph.
+
+Remove display properties and unfill."
+  (interactive)
+  (save-excursion
+    (let ((end (progn (forward-paragraph) (point)))
+          (start (progn (backward-paragraph) (point))))
+      (pj-remove-display-property start end)
+      (pj-unfill-paragraph))))
+
+(defun pj-justify-paragraph ()
+  "Justify current paragraph using Knuth/Plass algorithm.
+
+If called on an already justified paragraph, it will be
+re-filled."
+  (interactive)
+  (save-excursion
+    (let ((trail-whitespace nil)
+          (end-position nil))
+      (-when-let* (((start . end) (bounds-of-thing-at-point 'paragraph)))
+        ;; keep the whitespace suffix
+        (goto-char end)
+        (when (looking-at-p "^$")
+          (backward-char 1))
+        (when (and (looking-at-p "$")
+                   (looking-back " +" (line-beginning-position) 'greedy))
+          (setq end-position (point-marker))
+          (setq trail-whitespace (match-string 0)))
+        (pj-unjustify-paragraph)
+        (goto-char start)
+        (when (looking-at-p "$")
+          (forward-line))
+        (pj-justify)
+        (when trail-whitespace
+          (goto-char end-position)
+          (insert trail-whitespace))))))
+
+(define-minor-mode pj-auto-justify-mode
+  "Automatically justify current paragraph."
+  :lighter " PJ"
+  (if pj-auto-justify-mode
+      (add-hook 'post-self-insert-hook 'pj-justify-paragraph nil 'local)
+    (remove-hook 'post-self-insert-hook 'pj-justify-paragraph 'local)))
 
 (provide 'justify-kp)
 ;;; justify-kp.el ends here

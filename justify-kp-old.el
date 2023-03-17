@@ -1,5 +1,8 @@
 ;; ver experimental, code has to be cleaned up & documented
 
+;; This file is here only for historical significance.  Nothing from
+;; here works anymore.
+
 (require 'dash)
 (require 'dash-functional)
 
